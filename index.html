@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📄 Resume Reviewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #fff8e1 0%, #fff 60%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container { max-width: 680px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 40px; }
+    .header .icon { font-size: 48px; margin-bottom: 8px; }
+    .header h1 { font-size: 36px; font-weight: 800; color: #1a1a1a; }
+    .header p { color: #666; margin-top: 8px; font-size: 16px; }
+
+    .upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: 16px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: #fafafa;
+      transition: all 0.2s;
+      margin-bottom: 20px;
+    }
+    .upload-area:hover, .upload-area.drag { border-color: #f59e0b; background: #fffbeb; }
+    .upload-area.has-file { border-color: #22c55e; background: #f0fdf4; }
+    .upload-area .up-icon { font-size: 32px; margin-bottom: 8px; }
+    .upload-area .up-title { font-weight: 600; color: #374151; }
+    .upload-area .up-sub { color: #9ca3af; font-size: 14px; margin-top: 4px; }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 32px;
+    }
+    .btn.active { background: linear-gradient(90deg, #f59e0b, #ef4444); color: #fff; }
+    .btn.inactive { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+
+    .error { color: #ef4444; text-align: center; margin-bottom: 16px; font-size: 14px; }
+
+    .result {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      border: 1px solid #f3f4f6;
+      display: none;
+    }
+    .result h3 { font-size: 18px; font-weight: 700; margin-top: 24px; margin-bottom: 8px; color: #1a1a1a; }
+    .result h3:first-child { margin-top: 0; }
+    .result p { margin: 4px 0; color: #333; line-height: 1.6; }
+    .result .score-row { display: flex; gap: 8px; margin-bottom: 4px; padding-left: 12px; }
+    .result .score-label { font-weight: 600; min-width: 200px; }
+    .result .score-val { color: #444; }
+    .result .divider { height: 1px; background: #f3f4f6; margin: 20px 0; }
+    .reset-btn {
+      display: block;
+      margin: 0 auto;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      cursor: pointer;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .loader { text-align: center; font-size: 16px; color: #f59e0b; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="icon">📄</div>
+    <h1>Resume Reviewer</h1>
+    <p>✨ Honest feedback. Warm guidance. Everything you need to land the job.</p>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+    <input type="file" id="fileInput" accept=".pdf,.txt" style="display:none" onchange="handleFile(this.files[0])"/>
+    <div class="up-icon" id="upIcon">📄</div>
+    <div class="up-title" id="upTitle">Drop your resume here</div>
+    <div class="up-sub" id="upSub">PDF or TXT · Click or drag & drop</div>
+  </div>
+
+  <div class="error" id="errorMsg"></div>
+
+  <button class="btn inactive" id="reviewBtn" onclick="reviewResume()">Review My Resume ✨</button>
+
+  <div class="loader" id="loader" style="display:none">Reviewing your resume... ✨ This takes ~15 seconds</div>
+
+  <!-- Result -->
+  <div class="result" id="result"></div>
+
+</div>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  let resumeText = "";
+
+  const uploadArea = document.getElementById("uploadArea");
+  uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("drag"); });
+  uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("drag"));
+  uploadArea.addEventListener("drop", e => { e.preventDefault(); uploadArea.classList.remove("drag"); handleFile(e.dataTransfer.files[0]); });
+
+  async function handleFile(file) {
+    if (!file) return;
+    document.getElementById("errorMsg").textContent = "";
+    const ext = file.name.split(".").pop().toLowerCase();
+    try {
+      if (ext === "pdf") {
+        const arr = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arr) }).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(it => it.str).join(" ") + "\n";
+        }
+        resumeText = text;
+      } else if (ext === "txt") {
+        resumeText = await file.text();
+      } else {
+        document.getElementById("errorMsg").textContent = "Please upload a PDF or TXT file.";
+        return;
+      }
+      document.getElementById("upIcon").textContent = "✅";
+      document.getElementById("upTitle").textContent = file.name;
+      document.getElementById("upSub").textContent = "Click to change file";
+      uploadArea.classList.add("has-file");
+      const btn = document.getElementById("reviewBtn");
+      btn.classList.remove("inactive");
+      btn.classList.add("active");
+    } catch {
+      document.getElementById("errorMsg").textContent = "Couldn't read this file. Try a PDF or TXT.";
+    }
+  }
+
+  async function reviewResume() {
+    if (!resumeText.trim()) return;
+    document.getElementById("loader").style.display = "block";
+    document.getElementById("result").style.display = "none";
+    document.getElementById("errorMsg").textContent = "";
+    document.getElementById("reviewBtn").classList.add("inactive");
+    document.getElementById("reviewBtn").classList.remove("active");
+
+    const systemPrompt = `You are Resume Reviewer — a senior career coach and hiring expert with years of experience reviewing thousands of resumes across industries.
+
+Your tone: Warm, honest, and constructive. Like a trusted mentor giving real feedback. Encouraging but never vague.
+
+Structure your response EXACTLY like this using these headers:
+
+## 🏆 Overall Score
+Give ONE overall score out of 10. Bold it. Then 2 sentences on what this score means for their job search.
+
+## 📊 Scorecard
+Rate each of these out of 10 with one line explanation and an emoji for each:
+- **✍️ Clarity & Format:** X/10 — 
+- **💥 Impact of Bullets:** X/10 — 
+- **🎯 Skills Relevance:** X/10 — 
+- **🤖 ATS Friendliness:** X/10 — 
+
+## ✅ What's Working
+3 specific strengths with emoji bullets. Be genuine and specific.
+
+## 🔧 Top 3 Improvements
+The 3 highest-impact changes to make RIGHT NOW. Be specific — rewrite a bullet if needed. Use numbered list with emojis.
+
+## 💡 One Big Insight
+One powerful observation that would make this resume dramatically better. Make it memorable.
+
+Keep the total response under 500 words. Be helpful and warm.`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: `Please review this resume:\n\n${resumeText.slice(0, 8000)}` }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.map(b => b.text || "").join("") || "Something went wrong.";
+      renderResult(text);
+    } catch {
+      document.getElementById("errorMsg").textContent = "API error. Please try again.";
+    }
+
+    document.getElementById("loader").style.display = "none";
+    document.getElementById("reviewBtn").classList.remove("inactive");
+    document.getElementById("reviewBtn").classList.add("active");
+  }
+
+  function renderResult(text) {
+    const container = document.getElementById("result");
+    container.style.display = "block";
+    let html = "";
+    const lines = text.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("## ")) {
+        html += `<h3>${line.replace("## ", "")}</h3>`;
+      } else if (line.match(/^- \*\*(.+?):\*\* (.+)/)) {
+        const m = line.match(/^- \*\*(.+?):\*\* (.+)/);
+        html += `<div class="score-row"><span class="score-label">${m[1]}:</span><span class="score-val">${m[2]}</span></div>`;
+      } else if (line.trim() === "") {
+        html += `<div style="height:6px"></div>`;
+      } else {
+        html += `<p>${line}</p>`;
+      }
+    }
+    html += `<div class="divider"></div><button class="reset-btn" onclick="resetApp()">Review Another Resume</button>`;
+    container.innerHTML = html;
+    container.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function resetApp() {
+    resumeText = "";
+    document.getElementById("result").style.display = "none";
+    document.getElementById("upIcon").textContent = "📄";
+    document.getElementById("upTitle").textContent = "Drop your resume here";
+    document.getElementById("upSub").textContent = "PDF or TXT · Click or drag & drop";
+    document.getElementById("uploadArea").classList.remove("has-file");
+    document.getElementById("fileInput").value = "";
+    const btn = document.getElementById("reviewBtn");
+    btn.classList.remove("active");
+    btn.classList.add("inactive");
+  }
+</script>
+</body>
+</html>
