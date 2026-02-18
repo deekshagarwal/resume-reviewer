@@ -189,20 +189,23 @@ One powerful observation that would make this resume dramatically better. Make i
 Keep the total response under 500 words. Be helpful and warm.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        "x-api-key": "YOUR_API_KEY_HERE",
-        "anthropic-version": "2023-06-01",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer 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"
+        },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "llama-3.3-70b-versatile",
           max_tokens: 1000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: `Please review this resume:\n\n${resumeText.slice(0, 8000)}` }]
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Please review this resume:\n\n${resumeText.slice(0, 8000)}` }
+          ]
         })
       });
       const data = await res.json();
-      const text = data.content?.map(b => b.text || "").join("") || "Something went wrong.";
+      const text = data.choices?.[0]?.message?.content || "Something went wrong.";
       renderResult(text);
     } catch {
       document.getElementById("errorMsg").textContent = "API error. Please try again.";
