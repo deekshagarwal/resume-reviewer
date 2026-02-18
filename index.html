@@ -192,6 +192,8 @@ Keep the total response under 500 words. Be helpful and warm.`;
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        "x-api-key": "YOUR_API_KEY_HERE",
+        "anthropic-version": "2023-06-01",
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
